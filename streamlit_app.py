@@ -233,7 +233,7 @@ def call_gemini_api(contents: list, model: genai.GenerativeModel) -> Dict[str, s
     max_wait_time = 60
     while retries < API_MAX_RETRIES:
         try:
-            # Verwende model.model_name, um den Modelltyp zu erhalten (z.B. "gemini-pro")
+            # ÄNDERUNG 2: Korrektes Attribut für Modellname im Logging
             logging.info(f"Sende Anfrage an Gemini ({model.model_name}): {str(contents)[:100]}... (Versuch {retries + 1})")
             response = model.generate_content(contents=contents)
 
@@ -260,10 +260,11 @@ def call_gemini_api(contents: list, model: genai.GenerativeModel) -> Dict[str, s
 def generate_summary(text: str, model: genai.GenerativeModel) -> str:
     """Generiert eine Textzusammenfassung."""
     prompt = f"Fasse den folgenden Text prägnant zusammen:\n\n{text}"
-    result = call_gemini_api([prompt], model=model)  # Kein Mime-Type
+    result = call_gemini_api([prompt], model=model)  # Kein Mime-Type, und model wird übergeben
     if SUMMARY_SLEEP_SECONDS > 0:
         time.sleep(SUMMARY_SLEEP_SECONDS)  # Optionale Pause
     return result.get("response", "Fehler: Keine Zusammenfassung generiert.")
+
 
 def process_uploaded_file(uploaded_file, text_model, vision_model) -> str:
     """Verarbeitet hochgeladene Dateien (PDF oder Bild)."""
@@ -290,13 +291,13 @@ def joint_conversation_with_selected_agents(
     conversation_topic: str,
     selected_agents: List[Dict[str, str]],
     iterations: int,
-    expertise_level: str,
+    expertise_level: str,  # Nicht verwendet, aber Parameter beibehalten
     language: str,
     chat_history: List[Dict[str, str]],
     user_state: str,
     discussion_id: str = None,
-    text_model: genai.GenerativeModel = None,
-    vision_model: genai.GenerativeModel = None,
+    text_model: genai.GenerativeModel = None,  # Parameter hinzugefügt
+    vision_model: genai.GenerativeModel = None, # Parameter hinzugefügt
     uploaded_file = None
 ) -> Tuple[List[Dict[str,str]], str, str, Union[int, None], Union[str, None]]:
     """Führt eine Konversation mit ausgewählten Agenten durch."""
@@ -307,44 +308,38 @@ def joint_conversation_with_selected_agents(
 
     active_agents_names = [agent["name"] for agent in selected_agents]
     num_agents = len(active_agents_names)
-    agent_outputs = [""] * num_agents  # Speichert die letzte Ausgabe jedes Agenten
-    topic_changed = False  # Flag, um Themenwechsel zu verfolgen
+    agent_outputs = [""] * num_agents
+    topic_changed = False
 
     logging.info(f"Konversation gestartet: {active_agents_names}, Iterationen: {iterations}, Diskussions-ID: {discussion_id}")
 
+    # ÄNDERUNG 3: Datei *vor* der Schleife verarbeiten
     initial_summary = process_uploaded_file(uploaded_file, text_model, vision_model)
     current_summary = initial_summary
 
     for i in range(iterations):
-        agent_idx = i % num_agents  # Rotiere durch die Agenten
+        agent_idx = i % num_agents
         current_agent_name = active_agents_names[agent_idx]
         current_agent_config = next((agent for agent in selected_agents if agent["name"] == current_agent_name), None)
-
-        # Hole Persönlichkeit und Anweisungen des aktuellen Agenten
         current_personality = current_agent_config.get("personality", "neutral")
         current_instruction = current_agent_config.get("instruction", "")
 
-        # Baue den Prompt für den aktuellen Agenten
         prompt_text = (
             f"Wir führen eine Konversation über: '{conversation_topic}'.\n"
-            + (f"Zusätzliche Informationen: '{initial_summary}'.\n" if initial_summary else "")
+            + (f"Zusätzliche Informationen: '{initial_summary}'.\n" if initial_summary else "") # initial summary
             + f"Hier ist die Zusammenfassung der bisherigen Diskussion:\n{current_summary}\n\n"
             + f"Iteration {i+1}: Agent {current_agent_name}, bitte antworte. {current_instruction}\n"
         )
-        if i > 0:  # Füge die Antwort des vorherigen Agenten hinzu (außer in der ersten Runde)
+        if i > 0:
             prompt_text += f"Der vorherige Agent sagte: {agent_outputs[(agent_idx - 1) % num_agents]}\n"
 
-        # Zusätzliche Anweisungen basierend auf der Persönlichkeit
-        if current_personality == "kritisch":
-            prompt_text += "\nSei besonders kritisch."
-        elif current_personality == "visionär":
-            prompt_text += "\nSei besonders visionär."
-        elif current_personality == "konservativ":
-            prompt_text += "\nSei besonders konservativ."
+        if current_personality == "kritisch":  prompt_text += "\nSei besonders kritisch."
+        elif current_personality == "visionär": prompt_text += "\nSei besonders visionär."
+        elif current_personality == "konservativ": prompt_text += "\nSei besonders konservativ."
         prompt_text += f"\n\nAntworte auf {language}."
 
+        # ÄNDERUNG 4:  Datei *innerhalb* der Schleife korrekt behandeln
         contents = [prompt_text]
-        # Füge die Datei zum Prompt hinzu, WENN sie existiert
         if uploaded_file is not None:
             try:
                 file_bytes = uploaded_file.read()
@@ -359,16 +354,15 @@ def joint_conversation_with_selected_agents(
                 yield chat_history, f"Fehler beim Lesen der Datei (Iteration {i+1}).", discussion_id, (i + 1), current_agent_name
                 continue
 
-        # Rufe die Gemini API auf (immer mit dem TEXTMODELL innerhalb der Konversation)
-        api_resp = call_gemini_api(contents, model=text_model)
-        agent_output = api_resp.get("response", f"Keine Antwort von {current_agent_name}")
-        agent_outputs[agent_idx] = agent_output  # Speichere die Ausgabe des Agenten
 
-        # Füge Nachrichten zum Chatverlauf hinzu (sowohl Benutzer-Prompt als auch Agenten-Antwort)
+        # ÄNDERUNG 5: *IMMER* text_model in der Konversation verwenden
+        api_resp = call_gemini_api(contents, model=text_model)  # HIER: Explizit text_model
+        agent_output = api_resp.get("response", f"Keine Antwort von {current_agent_name}")
+        agent_outputs[agent_idx] = agent_output
+
         chat_history.append({"role": "user", "content": f"Agent {current_agent_name} (Iteration {i + 1}): {prompt_text}"})
         chat_history.append({"role": "assistant", "content": f"{agent_output}"})
 
-        # Speichere den Chatverlauf in einer Datei (optional, für Debugging-Zwecke)
         try:
             with open(chat_history_filename, "w", encoding="utf-8") as f:
                 for message in chat_history:
@@ -376,12 +370,10 @@ def joint_conversation_with_selected_agents(
         except IOError as e:
             logging.error(f"Fehler beim Schreiben in Chatverlauf-Datei: {e}")
 
-        # Generiere eine neue Zusammenfassung (bisherige Zusammenfassung + neue Antwort)
         new_summary_input = f"Bisherige Zusammenfassung:\n{current_summary}\n\nNeue Antwort von {current_agent_name}:\n{agent_output}"
-        current_summary = generate_summary(new_summary_input, model=text_model)
-        time.sleep(API_SLEEP_SECONDS)  # API-Rate-Limit einhalten
+        current_summary = generate_summary(new_summary_input, model=text_model) # hier auch text_model!
+        time.sleep(API_SLEEP_SECONDS)
 
-        # Bewerte die Antwort und versuche es ggf. erneut (Retry-Logik)
         qual = evaluate_response(agent_output)
         if qual == "schlechte antwort":
             logging.info(f"{current_agent_name} => 'schlechte antwort', retry...")
@@ -404,18 +396,18 @@ def joint_conversation_with_selected_agents(
                     yield chat_history, "Fehler beim Lesen der Datei während des Retrys.", discussion_id, (i + 1), current_agent_name
                     continue
 
+            # Auch im Retry-Fall: text_model!
             retry_resp = call_gemini_api(retry_contents, model=text_model)
             retry_output = retry_resp.get("response", f"Keine Retry-Antwort von {current_agent_name}")
             if "Fehler" not in retry_output:
-                agent_output = retry_output  # Aktualisiere die Agenten-Antwort, wenn Retry erfolgreich war
+                agent_output = retry_output
             agent_outputs[agent_idx] = agent_output
 
-        # Aktualisiere Informationen für das Streamlit-Rating (vor dem Yield!)
+
         st.session_state['rating_info']["discussion_id"] = discussion_id
         st.session_state['rating_info']["iteration"] = i + 1
         st.session_state['rating_info']["agent_name"] = current_agent_name
 
-        # Formatiere den Output für Streamlit
         logging.info(f"Antwort Agent {current_agent_name} (i={i+1}): {agent_output[:50]}...")
         formatted_output_chunk = (
             f"**Iteration {i+1}: Agent {current_agent_name} ({current_personality})**\n\n"
@@ -424,11 +416,10 @@ def joint_conversation_with_selected_agents(
         )
         yield chat_history, formatted_output_chunk, discussion_id, (i + 1), current_agent_name
 
-        # Themenwechsel-Logik (nach 60% der Iterationen, wenn die Antworten sich wiederholen)
         if i > iterations * 0.6 and agent_output == agent_outputs[(agent_idx - 1) % num_agents] and not topic_changed:
             new_topic = "Neues Thema: KI-Trends 2026"
             contents = [new_topic] # kein upload file
-            if uploaded_file is not None: # korrektes file handling
+            if uploaded_file is not None:  # korrektes File-Handling
                 try:
                     file_bytes = uploaded_file.read()
                     mime_type = uploaded_file.type
@@ -444,12 +435,10 @@ def joint_conversation_with_selected_agents(
             agent_outputs = [new_topic] * num_agents
             topic_changed = True
 
-    # Generiere die finale Zusammenfassung (gesamter Chatverlauf)
     final_summary_input = "Gesamter Chatverlauf:\n" + "\n".join([f"{m['role']}: {m['content']}" for m in chat_history])
     final_summary = generate_summary(final_summary_input, model=text_model)
     chat_history.append({"role": "assistant", "content": f"**Gesamtzusammenfassung**:\n{final_summary}"})
 
-    # Speichere die Diskussion in der Datenbank (wenn ein Benutzer eingeloggt ist)
     if user_state:
         save_discussion_data_db(discussion_id, conversation_topic, active_agents_names, chat_history, final_summary, user_state)
         logging.info(f"Diskussion {discussion_id} gespeichert.")
@@ -459,7 +448,7 @@ def joint_conversation_with_selected_agents(
     final_text = agent_outputs[-1]
     chat_history.append({"role": "assistant", "content": f"Finale Aussage:\n{final_text}"})
     logging.info(f"Finale Aussage: {final_text}")
-    yield chat_history, final_summary, discussion_id, None, None  # Yield-Statement am Ende
+    yield chat_history, final_summary, discussion_id, None, None
 
 
 def save_chat_as_word(chat_history: List[Dict], discussion_id: str) -> str:
@@ -507,8 +496,8 @@ def main():
     # Initialisiere die Modelle NUR, wenn ein API-Schlüssel vorhanden ist
     if api_key:
         genai.configure(api_key=api_key)
-        model_text = genai.GenerativeModel(MODEL_NAME_TEXT)
-        model_vision = genai.GenerativeModel(MODEL_NAME_VISION)
+        model_text = genai.GenerativeModel(MODEL_NAME_TEXT) # Modell Namen benutzen
+        model_vision = genai.GenerativeModel(MODEL_NAME_VISION) # Modell Namen benutzen
     else:
         model_text = None  # Setze Modelle auf None, wenn kein Schlüssel
         model_vision = None
@@ -670,6 +659,7 @@ def main():
             st.session_state['rating_info'] = {}
             try:
                 with st.spinner("Konversation wird gestartet..."):
+                    # ÄNDERUNG/Ergänzung 6 Modelle werden übergeben
                     agent_convo = joint_conversation_with_selected_agents(
                         conversation_topic=topic_input,
                         selected_agents=selected_agents,
