@@ -13,22 +13,14 @@ from docx import Document
 from docx.shared import Inches
 
 from dotenv import load_dotenv
-import google.generativeai as genai
 
 import streamlit as st
 
 # ---------------------------
 # 1) Konfiguration und Setup
 # ---------------------------
-#load_dotenv() # No longer loading from .env, getting from user input.
 
-#API_KEY = os.getenv("API_KEY") # Removed, we'll get it from Streamlit.
 MODEL_NAME = "gemini-2.0-flash-thinking-exp-01-21"
-
-#if not API_KEY: #Moved this check to within main() to use API_KEY set by user
-#    raise ValueError("API_KEY nicht in .env gefunden!")
-
-#client = genai.Client(api_key=API_KEY) #Initialized in main() with user-provided key
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -253,6 +245,8 @@ def rate_agent_response(discussion_id: str, iteration: int, agent_name: str, rat
 # ---------------------------
 # 6) Gemini-API mit Retry, Backoff & Fehleranalyse
 # ---------------------------
+import google.generativeai as genai #Import google.generativeai here to be used
+
 def call_gemini_api(prompt: str, api_key: str) -> Dict[str, str]:
     """
     Ruft die Gemini-API auf mit erweitertem Retry-Mechanismus und Fehlerbehandlung.
@@ -276,37 +270,9 @@ def call_gemini_api(prompt: str, api_key: str) -> Dict[str, str]:
 
             return {"response": response.text}
 
-        except genai.APIError as e:
+        except Exception as e:  # Capture all exceptions
             err_s = str(e)
-            logging.error(f"Gemini API Fehler (Versuch {attempt+1}): {err_s}, Status Code: {e.status_code}")
-
-            if e.status_code == 429:
-                if attempt < API_MAX_RETRIES:
-                    retry_delay *= 2
-                    logging.info(f"Rate Limit erreicht. Warte {retry_delay}s und versuche erneut.")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    return {"response": f"API Rate Limit erreicht nach mehreren Versuchen. Bitte später erneut versuchen."}
-            elif e.status_code == 503:
-                if attempt < API_MAX_RETRIES:
-                    logging.info(f"Server überlastet. Warte {retry_delay}s und versuche erneut.")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    return {"response": "Gemini API Server überlastet nach mehreren Versuchen."}
-            elif e.status_code == 401:
-                return {"response": "Authentifizierungsfehler bei der Gemini API. Überprüfen Sie den API-Schlüssel."}
-            else:
-                if attempt < API_MAX_RETRIES:
-                    logging.info(f"Unerwarteter API Fehler, versuche Retry. Warte {retry_delay}s.")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    return {"response": f"Unerwarteter Fehler bei Gemini API Aufruf nach mehreren Versuchen: {err_s}"}
-        except Exception as e:
-            err_s = str(e)
-            logging.error(f"Genereller Fehler bei Gemini API Aufruf (Versuch {attempt+1}): {err_s}")
+            logging.error(f"Gemini API Fehler (Versuch {attempt + 1}): {err_s}")
             return {"response": f"Fehler bei Gemini API Aufruf: {err_s}"}
 
     return {"response": "Unbekannter Fehler nach mehreren API-Versuchen."}
