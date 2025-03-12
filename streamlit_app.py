@@ -19,7 +19,7 @@ import tornado
 import mimetypes
 
 # Konstanten
-MODEL_NAME_TEXT = "gemini-2.0-flash-thinking-exp-01-21"
+MODEL_NAME_TEXT = "gemini-1.5-pro"  #  "gemini-1.5-pro-latest" wäre auch OK
 MODEL_NAME_VISION = "gemini-pro-vision"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
