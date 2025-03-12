@@ -20,7 +20,7 @@ import mimetypes
 
 # Konstanten
 MODEL_NAME_TEXT = "gemini-2.0-flash-thinking-exp-01-21"
-MODEL_NAME_VISION = "gemini-2.0-flash-thinking-exp-01-21"
+MODEL_NAME_VISION = "gemini-pro-vision"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
