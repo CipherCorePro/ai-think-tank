@@ -102,12 +102,7 @@ translations = {
         "api_key_warning": "Bitte geben Sie einen API-Schlüssel ein, um die Anwendung zu nutzen.",
         "connection_error": "Verbindungsfehler. Bitte versuche es später erneut.",
         "unexpected_error": "Ein unerwarteter Fehler ist aufgetreten.",
-        "no_agents_selected": "Bitte wähle mindestens einen Agenten aus.",
-        "api_key_header": "API-Schlüssel",  # Deutscher Schlüssel
-        "saved_discussions" : "Gespeicherte Diskussionen",
-        "load_discussions" : "Diskussionen laden",
-        "agent_conversation" : "Agenten-Konversation",
-        "formatted_output" : "Formatierter Output"
+        "no_agents_selected": "Bitte wähle mindestens einen Agenten aus."
     },
     "en": {
         "title": "CipherCore Agent Conversation",
@@ -141,12 +136,7 @@ translations = {
         "api_key_warning": "Please enter an API key to use the application.",
         "connection_error": "Connection error. Please try again later.",
         "unexpected_error": "An unexpected error occurred.",
-        "no_agents_selected": "Please select at least one agent.",
-        "api_key_header": "API Key",  # Englischer Schlüssel
-        "saved_discussions" : "Saved Discussions",
-        "load_discussions" : "Load Discussions",
-        "agent_conversation" : "Agent Conversation",
-        "formatted_output" : "Formatted Output"
+        "no_agents_selected": "Please select at least one agent."
     },
     "es": {
         "title": "Conversación de Agentes CipherCore",
@@ -180,12 +170,7 @@ translations = {
         "api_key_warning": "Por favor, ingrese una clave API para usar la aplicación.",
         "connection_error": "Error de conexión. Por favor, inténtelo de nuevo más tarde.",
         "unexpected_error": "Ocurrió un error inesperado.",
-        "no_agents_selected": "Por favor, seleccione al menos un agente.",
-        "api_key_header": "Clave API",  # Spanischer Schlüssel
-        "saved_discussions" : "Discusiones Guardadas",
-        "load_discussions" : "Cargar Discusiones",
-        "agent_conversation" : "Conversación de Agentes",
-        "formatted_output" : "Salida Formateada"
+        "no_agents_selected": "Por favor, seleccione al menos un agente."
     },
     "ru": {
         "title": "Беседа Агентов CipherCore",
@@ -219,12 +204,7 @@ translations = {
         "api_key_warning": "Пожалуйста, введите ключ API, чтобы использовать приложение.",
         "connection_error": "Ошибка соединения. Пожалуйста, попробуйте позже.",
         "unexpected_error": "Произошла непредвиденная ошибка.",
-        "no_agents_selected": "Пожалуйста, выберите хотя бы одного агента.",
-        "api_key_header": "Ключ API",  # Russischer Schlüssel
-        "saved_discussions" : "Сохраненные Обсуждения",
-        "load_discussions" : "Загрузить Обсуждения",
-        "agent_conversation" : "Беседа Агентов",
-        "formatted_output" : "Форматированный Вывод"
+        "no_agents_selected": "Пожалуйста, выберите хотя бы одного агента."
     },
     "zh": {
         "title": "CipherCore 代理对话",
@@ -258,23 +238,25 @@ translations = {
         "api_key_warning": "请输入API密钥以使用应用程序。",
         "connection_error": "连接错误。请稍后再试。",
         "unexpected_error": "发生意外错误。",
-        "no_agents_selected": "请至少选择一个代理。",
-        "api_key_header": "API 密钥",  # Chinesischer Schlüssel
-        "saved_discussions" : "已保存的讨论",
-        "load_discussions" : "加载讨论",
-        "agent_conversation" : "代理对话",
-        "formatted_output" : "格式化输出"
+        "no_agents_selected": "请至少选择一个代理。"
     }
 }
 
 def get_translation(lang: str, key: str) -> str:
-    """Holt die Übersetzung für einen Schlüssel basierend auf der Sprache."""
+    """Holt die Übersetzung für einen Schlüssel, mit speziellem Handling für API-Schlüssel-Warnung."""
     try:
-        return translations[lang][key]
+        translation = translations[lang][key]
+        # Spezielle Behandlung für die API-Schlüssel-Warnung: Link hinzufügen
+        if key == "api_key_warning":
+            translation += f'  [Get an API key here](https://aistudio.google.com/apikey).'  # Link hinzugefügt
+        return translation
     except KeyError:
         logging.warning(f"Übersetzung für Schlüssel '{key}' in Sprache '{lang}' nicht gefunden. Verwende Englisch.")
-        # Fallback auf Englisch, wenn die Übersetzung fehlt
-        return translations.get("en", {}).get(key, f"Fehlender Schlüssel: {key}")
+        # Fallback auf Englisch + Link, wenn nötig.
+        translation = translations.get("en", {}).get(key, f"Fehlender Schlüssel: {key}")
+        if key == "api_key_warning":
+             translation += f'  [Get an API key here](https://aistudio.google.com/apikey).'
+        return translation
 
 
 
@@ -961,11 +943,11 @@ def main():
     if 'uploaded_file' not in st.session_state:
         st.session_state['uploaded_file'] = None
 
-    st.sidebar.header(get_translation(lang, "api_key_header"))  # Übersetze auch den Header
-    api_key = st.sidebar.text_input("Geben Sie Ihren Gemini API-Schlüssel ein:", type="password") # Kein Label mehr, da der Header jetzt übersetzt wird.
+    st.sidebar.header(get_translation(lang, "api_key_header"))
+    api_key = st.sidebar.text_input("Geben Sie Ihren Gemini API-Schlüssel ein:", type="password")
     if not api_key:
-        st.warning(get_translation(lang, "api_key_warning")) # Übersetzte Warnung
-        return  # Oder st.stop(), wenn du die Secrets verwendest.
+        st.warning(get_translation(lang, "api_key_warning"))  # <--- Hier wird der Link angezeigt
+        return
     else:
         st.session_state['api_key'] = api_key
 
