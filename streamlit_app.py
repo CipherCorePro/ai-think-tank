@@ -18,6 +18,7 @@ from google.generativeai.types import StopCandidateException
 import tornado
 import mimetypes
 
+
 # Konstanten und globale Einstellungen
 MODEL_NAME_TEXT = "gemini-2.0-flash-thinking-exp-01-21"  # Für Text
 MODEL_NAME_VISION = "gemini-2.0-flash-thinking-exp-01-21"  # Für Bilder
@@ -241,7 +242,14 @@ translations = {
     }
 }
 
-
+def get_translation(lang: str, key: str) -> str:
+    """Holt die Übersetzung für einen Schlüssel basierend auf der Sprache."""
+    try:
+        return translations[lang][key]
+    except KeyError:
+        logging.warning(f"Übersetzung für Schlüssel '{key}' in Sprache '{lang}' nicht gefunden. Verwende Englisch.")
+        # Fallback auf Englisch, wenn die Übersetzung fehlt
+        return translations.get("en", {}).get(key, f"Fehlender Schlüssel: {key}")
 
 
 
@@ -872,13 +880,46 @@ def save_chat_as_word(chat_history: List[Dict], discussion_id: str) -> str:
         logging.error(f"Fehler beim Speichern der Word-Datei: {e}")
         return None
 
+
+
 def main():
     """
     Hauptfunktion der Streamlit-Anwendung.
     """
-    st.title("CipherCore Agenten-Konversation")
-    st.markdown("AI-THINK-TANK – Die KI-Plattform für bahnbrechende Innovationen.")
-    st.markdown("Ein Bild, eine Idee – und in Minuten entsteht eine visionäre Lösung. Von Software über Städteplanung bis hin zu neuen Geschäftsmodellen – du gibst den Impuls, die KI erschafft das Konzept! ")
+    # --- SPRACHAUSWAHL ---
+    # 1. Sprache im Session State speichern (mit 'en' als Standard)
+    if 'language' not in st.session_state:
+        st.session_state['language'] = 'en'
+
+    # 2. Sprachauswahl (Radio-Buttons).  WICHTIG: key='language'
+    #    Verwende *NICHT* die übersetzten Sprachenamen direkt in der options-Liste.
+    #    Verwende stattdessen die Sprachcodes, und zeige die übersetzten Namen an.
+    language_options = {
+        "de": "Deutsch",
+        "en": "Englisch",
+        "fr": "Französisch",
+        "es": "Spanisch",
+        "ru": "Russisch",
+        "zh": "Chinesisch"
+    }
+    #    Zeige die *übersetzten* Namen an, aber speichere die *Codes*.
+    selected_lang_code = st.sidebar.radio(
+        "Language",
+        options=list(language_options.keys()),  # Sprachcodes als Options
+        format_func=lambda code: language_options[code],  # Übersetzte Namen anzeigen
+        key='language',
+        horizontal=True
+    )
+
+
+    lang = selected_lang_code # Kein extra Mapping mehr notwendig.
+
+
+    # --- Ab hier: Texte über get_translation() holen ---
+    st.title(get_translation(lang, "title"))
+    st.markdown(get_translation(lang, "subtitle"))
+    st.markdown(get_translation(lang, "description"))
+
 
     if 'user_state' not in st.session_state:
         st.session_state['user_state'] = None
@@ -895,102 +936,104 @@ def main():
     if 'uploaded_file' not in st.session_state:
         st.session_state['uploaded_file'] = None
 
-    st.sidebar.header("API-Schlüssel")
-    api_key = st.sidebar.text_input("Geben Sie Ihren Gemini API-Schlüssel ein:", type="password")
+    st.sidebar.header(get_translation(lang, "api_key_header"))  # Übersetze auch den Header
+    api_key = st.sidebar.text_input("Geben Sie Ihren Gemini API-Schlüssel ein:", type="password") # Kein Label mehr, da der Header jetzt übersetzt wird.
     if not api_key:
-        st.warning("Bitte geben Sie einen API-Schlüssel ein, um die Anwendung zu nutzen.")
-        return
+        st.warning(get_translation(lang, "api_key_warning")) # Übersetzte Warnung
+        return  # Oder st.stop(), wenn du die Secrets verwendest.
     else:
         st.session_state['api_key'] = api_key
 
-    with st.expander("Login / Registrierung", expanded=False):
+    with st.expander(get_translation(lang, "login_register"), expanded=False):  # Übersetzter Expander-Text
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("Login")
-            username_login = st.text_input("Nutzername", key="username_login")
-            password_login = st.text_input("Passwort", type="password", key="password_login")
-            login_btn = st.button("Login")
+            st.subheader(get_translation(lang, "login"))  # Überschriften übersetzen
+            username_login = st.text_input(get_translation(lang, "username"), key="username_login")
+            password_login = st.text_input(get_translation(lang, "password"), type="password", key="password_login")
+            login_btn = st.button(get_translation(lang, "login_btn"))
             login_status = st.empty()
             if login_btn:
                 msg, logged_in_user = login_user(username_login, password_login)
                 if logged_in_user:
                     st.session_state['user_state'] = logged_in_user
-                    login_status.success(msg)
+                    login_status.success(msg)  # KEINE Übersetzung der Login-Meldung, da diese dynamisch generiert wird!
                     st.rerun()
                 else:
-                    login_status.error(msg)
+                    login_status.error(msg)  # KEINE Übersetzung
+
         with col2:
-            st.subheader("Registrierung")
-            username_register = st.text_input("Nutzername", key="username_register")
-            password_register = st.text_input("Passwort", type="password", key="password_register")
-            register_btn = st.button("Registrieren")
+            st.subheader(get_translation(lang, "register"))
+            username_register = st.text_input(get_translation(lang, "username"), key="username_register")
+            password_register = st.text_input(get_translation(lang, "password"), type="password", key="password_register")
+            register_btn = st.button(get_translation(lang, "register_btn"))
             register_status = st.empty()
             if register_btn:
                 msg = register_user(username_register, password_register)
-                register_status.info(msg)
+                register_status.info(msg)  # KEINE Übersetzung der Registrierungs-Meldung
 
     st.markdown("---")
     agent_config_data = load_agent_config()
     agent_selections = {}
-    st.subheader("Agenten Auswahl")
-    with st.expander("Agenten Auswahl (auf-/zuklappbar)", expanded=False):
+    st.subheader(get_translation(lang, "agent_selection"))
+    with st.expander(get_translation(lang, "agent_selection"), expanded=False):
         for agent_data in agent_config_data:
             agent_selections[agent_data["name"]] = {
-                "selected": st.checkbox(agent_data["name"]),
+                "selected": st.checkbox(agent_data["name"]),  # KEINE Übersetzung des Agenten-Namens
                 "personality": st.radio(
-                    f"Persönlichkeit für {agent_data['name']}",
-                    ["kritisch", "visionär", "konservativ", "neutral"],
+                    f"Persönlichkeit für {agent_data['name']}", # Keine Übersetzung innerhalb des f-strings
+                    ["kritisch", "visionär", "konservativ", "neutral"], # Keine Übersetzung von festen Werten
                     horizontal=True,
                     key=f"personality_{agent_data['name']}"
                 )
             }
 
-    topic_input = st.text_input("Diskussionsthema")
-    iteration_slider = st.slider("Anzahl Gesprächsrunden", 1, 50, value=10, step=1)
-    level_radio = st.radio("Experten-Level", ["Beginner", "Fortgeschritten", "Experte"], horizontal=True)
-    lang_radio = st.radio("Sprache", ["Deutsch", "Englisch", "Französisch", "Spanisch"], horizontal=True)
+    topic_input = st.text_input(get_translation(lang, "topic"))
+    iteration_slider = st.slider(get_translation(lang, "iterations"), 1, 50, value=10, step=1)
+    level_radio = st.radio(get_translation(lang, "expertise_level"), ["Beginner", "Fortgeschritten", "Experte"], horizontal=True) # Keine Übersetzung der Level
+    # --- SPRACHAUSWAHL OBEN, nicht hier ---
+    # lang_radio = st.radio("Sprache", ["Deutsch", "Englisch", "Französisch", "Spanisch", "Russisch", "Chinesisch"], horizontal=True)
 
-    st.subheader("Datei hochladen (optional)")
-    uploaded_file = st.file_uploader("Wählen Sie eine Datei aus (PDF, PNG, JPG, JPEG, GIF)", type=["pdf", "png", "jpg", "jpeg", "gif"])
+    st.subheader(get_translation(lang, "upload_file"))
+    uploaded_file = st.file_uploader(get_translation(lang, "upload_file"), type=["pdf", "png", "jpg", "jpeg", "gif"]) # Hier wird der übersetzte Text verwendet
 
     if uploaded_file is not None:
         st.session_state['uploaded_file'] = uploaded_file
         file_type = uploaded_file.type
-        st.write(f"Hochgeladener Dateityp: {file_type}")
+        st.write(f"Hochgeladener Dateityp: {file_type}")  # Dateityp-Anzeige nicht übersetzen
 
         if file_type.startswith("image"):
             st.image(uploaded_file)
         elif file_type == "application/pdf":
-            st.write("PDF-Datei hochgeladen (Vorschau nicht unterstützt)")
+            st.write("PDF-Datei hochgeladen (Vorschau nicht unterstützt)")  # ODER übersetzen, wenn du möchtest
         else:
-            st.write("Datei hochgeladen")
+            st.write("Datei hochgeladen") # ODER übersetzen.
 
-    with st.expander("Gespeicherte Diskussionen", expanded=False):
-        load_disc_btn = st.button("Diskussionen laden")
+    with st.expander(get_translation(lang,"saved_discussions"), expanded=False):
+        load_disc_btn = st.button(get_translation(lang,"load_discussions"))
         saved_discussions = st.empty()
         if load_disc_btn:
             if st.session_state['user_state']:
                 disc_data = load_discussion_data_db(st.session_state['user_state'])
-                saved_discussions.json(disc_data)
+                saved_discussions.json(disc_data) # Keine Übersetzung, da es sich um Daten handelt.
             else:
-                saved_discussions.warning("Bitte zuerst einloggen.")
+                saved_discussions.warning(get_translation(lang,"login_warning"))
 
-    start_btn = st.button("Konversation starten")
+    start_btn = st.button(get_translation(lang, "start_conversation"))
 
-    st.subheader("Agenten-Konversation")
+    st.subheader(get_translation(lang, "agent_conversation"))
     for message in st.session_state['chat_history']:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            st.markdown(message["content"]) # Keine Übersetzung, da dynamischer Inhalt
 
-    st.subheader("Formatierter Output")
-    st.markdown(st.session_state['formatted_output_text'])
+    st.subheader(get_translation(lang, "formatted_output"))
+    st.markdown(st.session_state['formatted_output_text'])# Keine Übersetzung, da dynamischer Inhalt
 
     rating_col1, rating_col2, rating_col3 = st.columns([1, 1, 3])
     if st.session_state['rating_info'].get("iteration") is not None:
         with rating_col1:
-            upvote_btn = st.button("👍 Upvote")
+            upvote_btn = st.button(get_translation(lang, "upvote"))
         with rating_col2:
-            downvote_btn = st.button("👎 Downvote")
+            downvote_btn = st.button(get_translation(lang, "downvote"))
         with rating_col3:
             rating_label = st.empty()
 
@@ -1000,47 +1043,47 @@ def main():
             agn = st.session_state['rating_info'].get("agent_name")
             if did and itn and agn:
                 rate_agent_response(did, itn, agn, "upvote")
-                rating_label.success("👍 Upvote gegeben")
+                rating_label.success(get_translation(lang, "rating_success"))
             else:
-                rating_label.error("Fehler beim Upvote (fehlende Daten).")
+                rating_label.error(get_translation(lang, "rating_error"))
         if downvote_btn:
             did = st.session_state['rating_info'].get("discussion_id")
             itn = st.session_state['rating_info'].get("iteration")
             agn = st.session_state['rating_info'].get("agent_name")
             if did and itn and agn:
                 rate_agent_response(did, itn, agn, "downvote")
-                rating_label.success("👎 Downvote gegeben")
+                rating_label.success(get_translation(lang, "rating_success"))
             else:
-                rating_label.error("Fehler beim Downvote (fehlende Daten).")
+                rating_label.error(get_translation(lang, "rating_error"))
 
     save_col1, save_col2 = st.columns(2)
     with save_col1:
-        save_btn = st.button("Diskussion speichern")
+        save_btn = st.button(get_translation(lang, "save_discussion"))
         save_status = st.empty()
         if save_btn:
             if st.session_state['user_state']:
                 active_agents_names = [agent['name'] for agent in agent_config_data if agent_selections[agent['name']]['selected']]
                 save_discussion_data_db(st.session_state['discussion_id'], topic_input, active_agents_names, st.session_state['chat_history'], "Manuell gespeichert", st.session_state['user_state'])
-                save_status.success("Diskussion in Datenbank gespeichert.")
+                save_status.success(get_translation(lang, "save_success"))
             else:
-                save_status.warning("Bitte zuerst einloggen.")
+                save_status.warning(get_translation(lang, "login_warning"))
     with save_col2:
-        word_save_btn = st.button("Chat als Word speichern")
+        word_save_btn = st.button(get_translation(lang, "save_as_word"))
         if word_save_btn:
             if st.session_state['discussion_id']:
                 word_filename = save_chat_as_word(st.session_state['chat_history'], st.session_state['discussion_id'])
                 if word_filename:
                     with open(word_filename, "rb") as file:
                         st.download_button(
-                            label="Word-Datei herunterladen",
+                            label=get_translation(lang, "download_word"), # Übersetztes Label
                             data=file,
                             file_name=word_filename,
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
                 else:
-                    st.error("Fehler beim Erstellen der Word-Datei.")
+                    st.error(get_translation(lang, "word_error"))
             else:
-                st.warning("Diskussions-ID fehlt. Starten Sie zuerst eine Konversation.")
+                st.warning(get_translation(lang, "missing_discussion_id"))
 
     if start_btn:
         selected_agents = [
@@ -1048,20 +1091,20 @@ def main():
             for agent in agent_selections if agent_selections[agent]["selected"]
         ]
         if not selected_agents:
-            st.warning("Bitte wähle mindestens einen Agenten aus.")
+            st.warning(get_translation(lang, "no_agents_selected")) # Übersetzte Warnung
         else:
             st.session_state['chat_history'] = []
             st.session_state['formatted_output_text'] = ""
             st.session_state['discussion_id'] = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             st.session_state['rating_info'] = {}
             try:
-                with st.spinner("Konversation wird gestartet..."):
+                with st.spinner("Konversation wird gestartet..."):  # Spinner-Text NICHT übersetzen ,aber eventuell auch hierfür einen key erstellen
                     agent_convo = joint_conversation_with_selected_agents(
-                        conversation_topic=topic_input,
+                        conversation_topic=topic_input,  # Kein Prompt mehr hier
                         selected_agents=selected_agents,
                         iterations=iteration_slider,
-                        expertise_level=level_radio,
-                        language=lang_radio,
+                        expertise_level=level_radio, # Keine Übersetzung
+                        language=lang,  # Verwende den Sprachcode!
                         chat_history=[],
                         user_state=st.session_state['user_state'],
                         discussion_id=st.session_state['discussion_id'],
@@ -1083,11 +1126,10 @@ def main():
                             st.session_state['formatted_output_text'] += chunk_text
 
             except (tornado.websocket.WebSocketClosedError, tornado.iostream.StreamClosedError) as e:
-                st.error(f"Verbindungsfehler: {e}. Bitte versuche es später erneut. Möglicherweise ist die Konversation zu lang oder das Netzwerk ist instabil.")
+                st.error(get_translation(lang, "connection_error"))
             except StopCandidateException as e:
-                st.error(f"Die Konversation wurde unerwartet beendet: {e}")
+                st.error(f"Die Konversation wurde unerwartet beendet: {e}")  # Keine Übersetzung, da es eine spezifische Fehlermeldung ist.
             except Exception as e:
-                st.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
-
+                st.error(get_translation(lang, "unexpected_error"))
 if __name__ == "__main__":
     main()
