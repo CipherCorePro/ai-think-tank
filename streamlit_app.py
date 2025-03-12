@@ -233,7 +233,8 @@ def call_gemini_api(contents: list, model: genai.GenerativeModel) -> Dict[str, s
     max_wait_time = 60
     while retries < API_MAX_RETRIES:
         try:
-            logging.info(f"Sende Anfrage an Gemini ({model.name}): {str(contents)[:100]}... (Versuch {retries + 1})")
+            # Verwende model.model_name, um den Modelltyp zu erhalten (z.B. "gemini-pro")
+            logging.info(f"Sende Anfrage an Gemini ({model.model_name}): {str(contents)[:100]}... (Versuch {retries + 1})")
             response = model.generate_content(contents=contents)
 
             if not hasattr(response, "text") or not response.text:
