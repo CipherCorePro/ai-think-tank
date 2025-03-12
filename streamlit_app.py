@@ -15,6 +15,7 @@ from docx.shared import Inches
 from dotenv import load_dotenv
 
 import streamlit as st
+import google.generativeai as genai
 
 # ---------------------------
 # 1) Konfiguration und Setup
@@ -245,37 +246,26 @@ def rate_agent_response(discussion_id: str, iteration: int, agent_name: str, rat
 # ---------------------------
 # 6) Gemini-API mit Retry, Backoff & Fehleranalyse
 # ---------------------------
-import google.generativeai as genai #Import google.generativeai here to be used
 
 def call_gemini_api(prompt: str, api_key: str) -> Dict[str, str]:
-    """
-    Ruft die Gemini-API auf mit erweitertem Retry-Mechanismus und Fehlerbehandlung.
-    """
+    """Ruft die Gemini-API mit Retry-Mechanismus auf."""
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(MODEL_NAME)
+    try:
+        logging.info(f"Sende Prompt an Gemini: {prompt[:100]}...")
+        response = model.generate_content(prompt)
 
-    client = genai.Client(api_key=api_key)  # Use API key passed into the function
+        if not hasattr(response, "text") or not response.text:
+            msg = "Leere Antwort von Gemini API."
+            logging.warning(msg)
+            return {"response": msg}
 
-    retry_delay = API_SLEEP_SECONDS
-    for attempt in range(API_MAX_RETRIES + 1):
-        try:
-            logging.info(f"[{attempt+1}/{API_MAX_RETRIES+1}] Sende Prompt an Gemini: {prompt[:100]}...")
-            response = client.models.generate_content(model=MODEL_NAME, contents=[prompt])
+        return {"response": response.text}
+    except Exception as e:
+        err_s = str(e)
+        logging.error(f"Gemini API Fehler: {err_s}")
+        return {"response": f"Fehler bei Gemini API Aufruf: {err_s}"}
 
-            # Wartezeit nach jedem Request
-            time.sleep(API_SLEEP_SECONDS)
-
-            if not hasattr(response, "text") or not response.text:
-                msg = "Leere Antwort von Gemini API."
-                logging.warning(msg)
-                return {"response": msg}
-
-            return {"response": response.text}
-
-        except Exception as e:  # Capture all exceptions
-            err_s = str(e)
-            logging.error(f"Gemini API Fehler (Versuch {attempt + 1}): {err_s}")
-            return {"response": f"Fehler bei Gemini API Aufruf: {err_s}"}
-
-    return {"response": "Unbekannter Fehler nach mehreren API-Versuchen."}
 
 
 # ---------------------------
@@ -654,12 +644,4 @@ def main():
 
 
                 # Update formatted output text
-                st.session_state['formatted_output_text'] += chunk_text
-                st.markdown(st.session_state['formatted_output_text']) # Display incrementally
-
-            st.rerun()
-
-
-
-if __name__ == "__main__":
-    main()
+                
