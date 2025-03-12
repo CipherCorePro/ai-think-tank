@@ -13,8 +13,8 @@ from jsonschema import validate, ValidationError
 from docx import Document
 from docx.shared import Inches
 import streamlit as st
-from google import genai
-from google.generativeai.types.generation_types import StopCandidateException
+import google.generativeai as genai
+from google.generativeai.types import StopCandidateException
 import tornado
 import mimetypes
 
