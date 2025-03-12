@@ -102,7 +102,12 @@ translations = {
         "api_key_warning": "Bitte geben Sie einen API-Schlüssel ein, um die Anwendung zu nutzen.",
         "connection_error": "Verbindungsfehler. Bitte versuche es später erneut.",
         "unexpected_error": "Ein unerwarteter Fehler ist aufgetreten.",
-        "no_agents_selected": "Bitte wähle mindestens einen Agenten aus."
+        "no_agents_selected": "Bitte wähle mindestens einen Agenten aus.",
+        "api_key_header": "API-Schlüssel",  # Deutscher Schlüssel
+        "saved_discussions" : "Gespeicherte Diskussionen",
+        "load_discussions" : "Diskussionen laden",
+        "agent_conversation" : "Agenten-Konversation",
+        "formatted_output" : "Formatierter Output"
     },
     "en": {
         "title": "CipherCore Agent Conversation",
@@ -136,7 +141,12 @@ translations = {
         "api_key_warning": "Please enter an API key to use the application.",
         "connection_error": "Connection error. Please try again later.",
         "unexpected_error": "An unexpected error occurred.",
-        "no_agents_selected": "Please select at least one agent."
+        "no_agents_selected": "Please select at least one agent.",
+        "api_key_header": "API Key",  # Englischer Schlüssel
+        "saved_discussions" : "Saved Discussions",
+        "load_discussions" : "Load Discussions",
+        "agent_conversation" : "Agent Conversation",
+        "formatted_output" : "Formatted Output"
     },
     "es": {
         "title": "Conversación de Agentes CipherCore",
@@ -170,7 +180,12 @@ translations = {
         "api_key_warning": "Por favor, ingrese una clave API para usar la aplicación.",
         "connection_error": "Error de conexión. Por favor, inténtelo de nuevo más tarde.",
         "unexpected_error": "Ocurrió un error inesperado.",
-        "no_agents_selected": "Por favor, seleccione al menos un agente."
+        "no_agents_selected": "Por favor, seleccione al menos un agente.",
+        "api_key_header": "Clave API",  # Spanischer Schlüssel
+        "saved_discussions" : "Discusiones Guardadas",
+        "load_discussions" : "Cargar Discusiones",
+        "agent_conversation" : "Conversación de Agentes",
+        "formatted_output" : "Salida Formateada"
     },
     "ru": {
         "title": "Беседа Агентов CipherCore",
@@ -204,7 +219,12 @@ translations = {
         "api_key_warning": "Пожалуйста, введите ключ API, чтобы использовать приложение.",
         "connection_error": "Ошибка соединения. Пожалуйста, попробуйте позже.",
         "unexpected_error": "Произошла непредвиденная ошибка.",
-        "no_agents_selected": "Пожалуйста, выберите хотя бы одного агента."
+        "no_agents_selected": "Пожалуйста, выберите хотя бы одного агента.",
+        "api_key_header": "Ключ API",  # Russischer Schlüssel
+        "saved_discussions" : "Сохраненные Обсуждения",
+        "load_discussions" : "Загрузить Обсуждения",
+        "agent_conversation" : "Беседа Агентов",
+        "formatted_output" : "Форматированный Вывод"
     },
     "zh": {
         "title": "CipherCore 代理对话",
@@ -238,25 +258,35 @@ translations = {
         "api_key_warning": "请输入API密钥以使用应用程序。",
         "connection_error": "连接错误。请稍后再试。",
         "unexpected_error": "发生意外错误。",
-        "no_agents_selected": "请至少选择一个代理。"
+        "no_agents_selected": "请至少选择一个代理。",
+        "api_key_header": "API 密钥",  # Chinesischer Schlüssel
+        "saved_discussions" : "已保存的讨论",
+        "load_discussions" : "加载讨论",
+        "agent_conversation" : "代理对话",
+        "formatted_output" : "格式化输出"
     }
 }
 
 def get_translation(lang: str, key: str) -> str:
     """Holt die Übersetzung für einen Schlüssel, mit speziellem Handling für API-Schlüssel-Warnung."""
     try:
+        # Zuerst versuchen, die Übersetzung in der angeforderten Sprache zu holen.
         translation = translations[lang][key]
-        # Spezielle Behandlung für die API-Schlüssel-Warnung: Link hinzufügen
         if key == "api_key_warning":
-            translation += f'  [Get an API key here](https://aistudio.google.com/apikey).'  # Link hinzugefügt
+            translation += f'  [Get an API key here](https://aistudio.google.com/apikey).'
         return translation
     except KeyError:
-        logging.warning(f"Übersetzung für Schlüssel '{key}' in Sprache '{lang}' nicht gefunden. Verwende Englisch.")
-        # Fallback auf Englisch + Link, wenn nötig.
-        translation = translations.get("en", {}).get(key, f"Fehlender Schlüssel: {key}")
-        if key == "api_key_warning":
-             translation += f'  [Get an API key here](https://aistudio.google.com/apikey).'
-        return translation
+        logging.warning(f"Übersetzung für Schlüssel '{key}' in Sprache '{lang}' nicht gefunden.")
+        # Fallback auf Englisch, wenn die Übersetzung in der angeforderten Sprache fehlt.
+        try:
+            translation = translations["en"][key]
+            if key == "api_key_warning":
+                translation += f'  [Get an API key here](https://aistudio.google.com/apikey).'
+            return translation
+        except KeyError:
+            logging.warning(f"Übersetzung für Schlüssel '{key}' auch in Englisch (en) nicht gefunden.")
+            # Erst jetzt, wenn ALLES fehlschlägt, den "Fehlender Schlüssel" Text zurückgeben.
+            return f"Fehlender Schlüssel: {key}"
 
 
 
@@ -899,8 +929,6 @@ def main():
         st.session_state['language'] = 'en'
 
     # 2. Sprachauswahl (Radio-Buttons).  WICHTIG: key='language'
-    #    Verwende *NICHT* die übersetzten Sprachenamen direkt in der options-Liste.
-    #    Verwende stattdessen die Sprachcodes, und zeige die übersetzten Namen an.
     language_options = {
         "de": "Deutsch",
         "en": "Englisch",
@@ -909,25 +937,18 @@ def main():
         "ru": "Russisch",
         "zh": "Chinesisch"
     }
-    #    Zeige die *übersetzten* Namen an, aber speichere die *Codes*.
     selected_lang_code = st.sidebar.radio(
         "Language",
-        options=list(language_options.keys()),  # Sprachcodes als Options
-        format_func=lambda code: language_options[code],  # Übersetzte Namen anzeigen
+        options=list(language_options.keys()),
+        format_func=lambda code: language_options[code],
         key='language',
-        horizontal=True
+        horizontal=True,
+        index=list(language_options.keys()).index(st.session_state['language'])  # Standard aus Session State
     )
 
+    lang = selected_lang_code
 
-    lang = selected_lang_code # Kein extra Mapping mehr notwendig.
-
-
-    # --- Ab hier: Texte über get_translation() holen ---
-    st.title(get_translation(lang, "title"))
-    st.markdown(get_translation(lang, "subtitle"))
-    st.markdown(get_translation(lang, "description"))
-
-
+    # --- Initialisiere ALLE Session State Variablen *vor* dem ersten Aufruf von get_translation ---
     if 'user_state' not in st.session_state:
         st.session_state['user_state'] = None
     if 'chat_history' not in st.session_state:
@@ -939,18 +960,26 @@ def main():
     if 'formatted_output_text' not in st.session_state:
         st.session_state['formatted_output_text'] = ""
     if 'api_key' not in st.session_state:
-        st.session_state['api_key'] = None
+        st.session_state['api_key'] = None  # Wichtig: Auch api_key initialisieren!
     if 'uploaded_file' not in st.session_state:
         st.session_state['uploaded_file'] = None
 
-    st.sidebar.header(get_translation(lang, "api_key_header"))
+
+    # --- JETZT erst die Texte holen, nachdem die Sprache korrekt gesetzt wurde ---
+    st.title(get_translation(lang, "title"))
+    st.markdown(get_translation(lang, "subtitle"))
+    st.markdown(get_translation(lang, "description"))
+
+
+    st.sidebar.header(get_translation(lang, "api_key_header"))  # <--- Hier war das Problem
     api_key = st.sidebar.text_input("Geben Sie Ihren Gemini API-Schlüssel ein:", type="password")
     if not api_key:
-        st.warning(get_translation(lang, "api_key_warning"))  # <--- Hier wird der Link angezeigt
+        st.warning(get_translation(lang, "api_key_warning"))
         return
     else:
-        st.session_state['api_key'] = api_key
+        st.session_state['api_key'] = api_key  # api_key in den Session State, falls eingegeben
 
+    # ... (Der Rest der main-Funktion bleibt gleich, aber stelle sicher, dass du ÜBERALL get_translation verwendest) ...
     with st.expander(get_translation(lang, "login_register"), expanded=False):  # Übersetzter Expander-Text
         col1, col2 = st.columns(2)
         with col1:
