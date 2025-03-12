@@ -220,11 +220,15 @@ def generate_image_summary_from_bytes(file_bytes: bytes, mime_type: str, model: 
     try:
         prompt = "Beschreibe den Inhalt des Bildes detailliert."
         contents = [prompt, {'mime_type': mime_type, 'data': file_bytes}]
-        response = model.generate_content(contents)
+
+        # Füge dies HIER ein:
+        generation_config = genai.GenerationConfig(max_output_tokens=500) # Oder einen anderen Wert
+        response = model.generate_content(contents, generation_config=generation_config)
+
         return response.text
     except Exception as e:
         logging.error(f"Fehler in generate_image_summary_from_bytes: {e}", exc_info=True)
-        st.error(f"Fehler in generate_image_summary_from_bytes: {e}") # Zeige Fehler in Streamlit
+        st.error(f"Fehler in generate_image_summary_from_bytes: {e}")
         return "Fehler beim Verarbeiten des Bildes."
 
 def call_gemini_api(contents: list, model: genai.GenerativeModel) -> Dict[str, str]:
