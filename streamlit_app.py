@@ -644,4 +644,5 @@ def main():
 
 
                 # Update formatted output text
-                
+if __name__ == "__main__":
+    main()                
