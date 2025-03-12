@@ -102,7 +102,12 @@ translations = {
         "api_key_warning": "Bitte geben Sie einen API-Schlüssel ein, um die Anwendung zu nutzen.",
         "connection_error": "Verbindungsfehler. Bitte versuche es später erneut.",
         "unexpected_error": "Ein unerwarteter Fehler ist aufgetreten.",
-        "no_agents_selected": "Bitte wähle mindestens einen Agenten aus."
+        "no_agents_selected": "Bitte wähle mindestens einen Agenten aus.",
+        "api_key_header": "API-Schlüssel",  # Deutscher Schlüssel
+        "saved_discussions" : "Gespeicherte Diskussionen",
+        "load_discussions" : "Diskussionen laden",
+        "agent_conversation" : "Agenten-Konversation",
+        "formatted_output" : "Formatierter Output"
     },
     "en": {
         "title": "CipherCore Agent Conversation",
@@ -136,7 +141,12 @@ translations = {
         "api_key_warning": "Please enter an API key to use the application.",
         "connection_error": "Connection error. Please try again later.",
         "unexpected_error": "An unexpected error occurred.",
-        "no_agents_selected": "Please select at least one agent."
+        "no_agents_selected": "Please select at least one agent.",
+        "api_key_header": "API Key",  # Englischer Schlüssel
+        "saved_discussions" : "Saved Discussions",
+        "load_discussions" : "Load Discussions",
+        "agent_conversation" : "Agent Conversation",
+        "formatted_output" : "Formatted Output"
     },
     "es": {
         "title": "Conversación de Agentes CipherCore",
@@ -170,7 +180,12 @@ translations = {
         "api_key_warning": "Por favor, ingrese una clave API para usar la aplicación.",
         "connection_error": "Error de conexión. Por favor, inténtelo de nuevo más tarde.",
         "unexpected_error": "Ocurrió un error inesperado.",
-        "no_agents_selected": "Por favor, seleccione al menos un agente."
+        "no_agents_selected": "Por favor, seleccione al menos un agente.",
+        "api_key_header": "Clave API",  # Spanischer Schlüssel
+        "saved_discussions" : "Discusiones Guardadas",
+        "load_discussions" : "Cargar Discusiones",
+        "agent_conversation" : "Conversación de Agentes",
+        "formatted_output" : "Salida Formateada"
     },
     "ru": {
         "title": "Беседа Агентов CipherCore",
@@ -204,7 +219,12 @@ translations = {
         "api_key_warning": "Пожалуйста, введите ключ API, чтобы использовать приложение.",
         "connection_error": "Ошибка соединения. Пожалуйста, попробуйте позже.",
         "unexpected_error": "Произошла непредвиденная ошибка.",
-        "no_agents_selected": "Пожалуйста, выберите хотя бы одного агента."
+        "no_agents_selected": "Пожалуйста, выберите хотя бы одного агента.",
+        "api_key_header": "Ключ API",  # Russischer Schlüssel
+        "saved_discussions" : "Сохраненные Обсуждения",
+        "load_discussions" : "Загрузить Обсуждения",
+        "agent_conversation" : "Беседа Агентов",
+        "formatted_output" : "Форматированный Вывод"
     },
     "zh": {
         "title": "CipherCore 代理对话",
@@ -238,7 +258,12 @@ translations = {
         "api_key_warning": "请输入API密钥以使用应用程序。",
         "connection_error": "连接错误。请稍后再试。",
         "unexpected_error": "发生意外错误。",
-        "no_agents_selected": "请至少选择一个代理。"
+        "no_agents_selected": "请至少选择一个代理。",
+        "api_key_header": "API 密钥",  # Chinesischer Schlüssel
+        "saved_discussions" : "已保存的讨论",
+        "load_discussions" : "加载讨论",
+        "agent_conversation" : "代理对话",
+        "formatted_output" : "格式化输出"
     }
 }
 
