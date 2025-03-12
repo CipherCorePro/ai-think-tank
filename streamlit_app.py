@@ -13,17 +13,14 @@ from jsonschema import validate, ValidationError
 from docx import Document
 from docx.shared import Inches
 import streamlit as st
-import google.generativeai as genai  # Korrekt!
-from google.generativeai.types.generation_types import StopCandidateException  # Korrekt
+import google.generativeai as genai
+from google.generativeai.types.generation_types import StopCandidateException
 import tornado
 import mimetypes
 
-# Konstanten und globale Einstellungen
-# MODEL_NAME_TEXT = "gemini-2.0-flash-thinking-exp-01-21"  # Für Text  -> Falscher Modellname
-# MODEL_NAME_VISION = "gemini-2.0-flash-thinking-exp-01-21"  # Für Bilder -> Falscher Modellname
-MODEL_NAME_TEXT = "gemini-pro"  # Korrekt: Für Text
-MODEL_NAME_VISION = "gemini-pro-vision"  # Korrekt: Für Bilder
-
+# Konstanten
+MODEL_NAME_TEXT = "gemini-2.0-flash-thinking-exp-01-21"
+MODEL_NAME_VISION = "gemini-2.0-flash-thinking-exp-01-21"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -31,27 +28,26 @@ API_SLEEP_SECONDS = 60
 API_MAX_RETRIES = 3
 SUMMARY_SLEEP_SECONDS = 10
 
-AUDIT_LOG_FILE = "audit_log.txt"
-EXPIRATION_TIME_SECONDS = 300
-ROLE_PERMISSIONS = {
+AUDIT_LOG_FILE = "audit_log.txt"  # Nicht verwendet im Moment
+EXPIRATION_TIME_SECONDS = 300  # Nicht verwendet im Moment
+ROLE_PERMISSIONS = {  # Nicht verwendet im Moment
     "user": ["REQ", "DATA"],
     "admin": ["REQ", "DATA", "CALC", "IF", "AI"]
 }
-PRIORITY_MAP = {"HIGH": 1, "MEDIUM": 2, "LOW": 3}
+PRIORITY_MAP = {"HIGH": 1, "MEDIUM": 2, "LOW": 3} # Nicht verwendet
 
 USER_DATA_FILE = "user_data.json"
 DISCUSSION_DB_FILE = "discussion_data.db"
 RATING_DATA_FILE = "rating_data.json"
 AGENT_CONFIG_FILE = "agent_config.json"
 
+# Schemas (JSON-Validierung)
 USER_DATA_SCHEMA = {
     "type": "object",
     "patternProperties": {
         "^[a-zA-Z0-9_-]+$": {
             "type": "object",
-            "properties": {
-                "password": {"type": "string"}
-            },
+            "properties": {"password": {"type": "string"}},
             "required": ["password"]
         }
     }
@@ -70,8 +66,9 @@ AGENT_CONFIG_SCHEMA = {
     }
 }
 
+# Hilfsfunktionen für JSON (Laden/Speichern/Validieren)
 def load_json_data(filename: str, schema: dict = None) -> Dict[str, Any]:
-    """Lädt JSON-Daten."""
+    """Lädt JSON-Daten aus einer Datei und validiert sie (optional)."""
     try:
         with open(filename, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -79,58 +76,36 @@ def load_json_data(filename: str, schema: dict = None) -> Dict[str, Any]:
                 validate(instance=data, schema=schema)
             return data
     except FileNotFoundError:
-        logging.warning(f"Datei '{filename}' nicht gefunden.")
+        logging.warning(f"Datei '{filename}' nicht gefunden. Starte mit leeren Daten.")
         return {}
     except (json.JSONDecodeError, ValidationError) as e:
         logging.error(f"Fehler beim Lesen von '{filename}': {e}")
         return {}
 
 def save_json_data(data: Dict[str, Any], filename: str) -> None:
-    """Speichert JSON-Daten."""
+    """Speichert JSON-Daten in einer Datei."""
     try:
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
     except IOError as e:
         logging.error(f"Fehler beim Schreiben in Datei '{filename}': {e}")
 
-def load_user_data() -> Dict[str, Any]:
-    """Lädt Benutzerdaten."""
-    return load_json_data(USER_DATA_FILE, USER_DATA_SCHEMA)
+# Benutzerverwaltung (Laden, Speichern, Registrieren, Login)
+def load_user_data() -> Dict[str, Any]:  return load_json_data(USER_DATA_FILE, USER_DATA_SCHEMA)
+def save_user_data(user_data: Dict[str, Any]) -> None:  save_json_data(user_data, USER_DATA_FILE)
+def load_rating_data() -> Dict[str, Any]: return load_json_data(RATING_DATA_FILE)
+def save_rating_data(rating_data: Dict[str, Any]) -> None: save_json_data(rating_data, RATING_DATA_FILE)
+def load_agent_config() -> List[Dict[str, str]]: return load_json_data(AGENT_CONFIG_FILE, AGENT_CONFIG_SCHEMA)
 
-def save_user_data(user_data: Dict[str, Any]) -> None:
-    """Speichert Benutzerdaten."""
-    save_json_data(user_data, USER_DATA_FILE)
-
-def load_rating_data() -> Dict[str, Any]:
-    """Lädt Bewertungsdaten."""
-    return load_json_data(RATING_DATA_FILE)
-
-def save_rating_data(rating_data: Dict[str, Any]) -> None:
-    """Speichert Bewertungsdaten."""
-    save_json_data(rating_data, RATING_DATA_FILE)
-
-def load_agent_config() -> List[Dict[str, str]]:
-    """Lädt die Agentenkonfiguration."""
-    config = load_json_data(AGENT_CONFIG_FILE, AGENT_CONFIG_SCHEMA)
-    return config if isinstance(config, list) else []
-
-def hash_password(password: str) -> str:
-    """Hasht ein Passwort."""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def verify_password(password: str, hashed_password: str) -> bool:
-    """Überprüft ein Passwort."""
-    return hash_password(password) == hashed_password
+def hash_password(password: str) -> str: return hashlib.sha256(password.encode()).hexdigest()
+def verify_password(password: str, hashed: str) -> bool: return hash_password(password) == hashed
 
 def register_user(username: str, password: str) -> str:
-    """Registriert einen Benutzer."""
-    if not re.match(r"^[a-zA-Z0-9_-]+$", username):
-        return "Ungültiger Nutzername."
-    if len(password) < 8:
-        return "Passwort zu kurz."
+    """Registriert einen neuen Benutzer."""
+    if not re.match(r"^[a-zA-Z0-9_-]+$", username): return "Ungültiger Nutzername."
+    if len(password) < 8: return "Passwort muss mindestens 8 Zeichen lang sein."
     user_data = load_user_data()
-    if username in user_data:
-        return "Nutzername bereits vergeben."
+    if username in user_data: return "Nutzername bereits vergeben."
     user_data[username] = {"password": hash_password(password)}
     save_user_data(user_data)
     return "Registrierung erfolgreich."
@@ -142,8 +117,9 @@ def login_user(username: str, password: str) -> Tuple[str, str]:
         return "Login erfolgreich.", username
     return "Login fehlgeschlagen.", None
 
+# Datenbankfunktionen (Erstellen, Speichern, Laden)
 def create_discussion_table():
-    """Erstellt die Diskussionstabelle."""
+    """Erstellt die Diskussionstabelle (falls sie nicht existiert)."""
     conn = sqlite3.connect(DISCUSSION_DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -159,11 +135,11 @@ def create_discussion_table():
     """)
     conn.commit()
     conn.close()
+create_discussion_table()  # Stelle sicher, dass die Tabelle existiert
 
-create_discussion_table()
 
 def save_discussion_data_db(discussion_id: str, topic: str, agents: List[str], chat_history: List[Dict], summary: str, user: str = None) -> None:
-    """Speichert Diskussionsdaten in der Datenbank."""
+    """Speichert Diskussionsdaten in der SQLite-Datenbank."""
     conn = sqlite3.connect(DISCUSSION_DB_FILE)
     cursor = conn.cursor()
     try:
@@ -173,13 +149,13 @@ def save_discussion_data_db(discussion_id: str, topic: str, agents: List[str], c
         """, (discussion_id, topic, json.dumps(agents), json.dumps(chat_history), summary, user))
         conn.commit()
     except sqlite3.Error as e:
-        logging.error(f"Datenbankfehler: {e}")
-        conn.rollback()
+        logging.error(f"Datenbankfehler beim Speichern der Diskussion '{discussion_id}': {e}")
+        conn.rollback()  # Wichtig: Transaktion zurückrollen bei Fehler
     finally:
         conn.close()
 
 def load_discussion_data_db(user: str = None) -> Dict[str, Any]:
-    """Lädt Diskussionsdaten aus der Datenbank."""
+    """Lädt Diskussionsdaten aus der Datenbank (optional gefiltert nach Benutzer)."""
     conn = sqlite3.connect(DISCUSSION_DB_FILE)
     cursor = conn.cursor()
     discussions = {}
@@ -202,24 +178,22 @@ def load_discussion_data_db(user: str = None) -> Dict[str, Any]:
                 "timestamp": timestamp
             }
     except sqlite3.Error as e:
-        logging.error(f"Datenbankfehler: {e}")
+        logging.error(f"Datenbankfehler beim Laden der Diskussionen: {e}")
     finally:
         conn.close()
     return discussions
 
 def evaluate_response(response: str) -> str:
-    """Bewertet eine Antwort."""
+    """Bewertet die Qualität einer Antwort (einfache Heuristik)."""
     resp_l = response.lower()
-    if "wiederhole mich" in resp_l:
-        return "schlechte antwort"
-    elif "neue perspektive" in resp_l:
-        return "gute antwort"
+    if "wiederhole mich" in resp_l:  return "schlechte antwort"
+    if "neue perspektive" in resp_l: return "gute antwort"
     return "neutral"
 
 discussion_ratings = defaultdict(lambda: defaultdict(dict), load_rating_data())
 
 def rate_agent_response(discussion_id: str, iteration: int, agent_name: str, rating_type: str) -> None:
-    """Bewertet die Antwort eines Agenten."""
+    """Ermöglicht das Bewerten von Agentenantworten (Upvote/Downvote)."""
     global discussion_ratings
     if agent_name not in discussion_ratings[discussion_id][iteration]:
         discussion_ratings[discussion_id][iteration][agent_name] = {"upvotes": 0, "downvotes": 0}
@@ -227,57 +201,40 @@ def rate_agent_response(discussion_id: str, iteration: int, agent_name: str, rat
         discussion_ratings[discussion_id][iteration][agent_name]["upvotes"] += 1
     elif rating_type == "downvote":
         discussion_ratings[discussion_id][iteration][agent_name]["downvotes"] += 1
-    save_rating_data(discussion_ratings)
+    save_rating_data(discussion_ratings)  # Speichere die aktualisierten Bewertungen
 
+# Gemini API-Funktionen (PDF, Bild, Zusammenfassung, API-Aufruf)
 
-def generate_pdf_summary_from_bytes(file_bytes: bytes, api_key: str) -> str:
+def generate_pdf_summary_from_bytes(file_bytes: bytes, model: genai.GenerativeModel) -> str:
     """Generiert eine Zusammenfassung aus PDF-Bytes (korrigierte Version)."""
     try:
-        # Kein Mime-Type für Textmodelle!
         prompt = "Fasse den Inhalt der PDF zusammen. Achte darauf, dass wichtige Daten nicht verloren gehen!"
-        # Direkte Übergabe der Bytes, KEIN Part-Objekt für Text.
-        response = model_text.generate_content([prompt, file_bytes])  # Nutze model_text
+        response = model.generate_content([prompt, file_bytes])  # Kein Mime-Type
         return response.text
     except Exception as e:
         logging.error(f"Fehler in generate_pdf_summary_from_bytes: {e}", exc_info=True)
         return "Fehler beim Verarbeiten der PDF."
 
-
-def generate_image_summary_from_bytes(file_bytes: bytes, mime_type: str, api_key: str) -> str:
+def generate_image_summary_from_bytes(file_bytes: bytes, mime_type: str, model: genai.GenerativeModel) -> str:
     """Generiert eine Bildbeschreibung (korrigierte Version)."""
     try:
         prompt = "Beschreibe den Inhalt des Bildes detailliert."
-        contents = [
-            prompt,
-            {  # Korrekte Struktur für Bilder!
-                'mime_type': mime_type,
-                'data': file_bytes
-            }
-        ]
-        response = model_vision.generate_content(contents)  # Nutze model_vision
+        contents = [prompt, {'mime_type': mime_type, 'data': file_bytes}]
+        response = model.generate_content(contents)
         return response.text
     except Exception as e:
         logging.error(f"Fehler in generate_image_summary_from_bytes: {e}", exc_info=True)
         return "Fehler beim Verarbeiten des Bildes."
 
-
-def call_gemini_api(contents: list, api_key: str, model: str) -> Dict[str, str]:
-    """Ruft die Gemini API auf (angepasst für bessere Fehlerbehandlung)."""
-    # client = genai.Client(api_key=api_key) # Nicht mehr benötigt, da global konfiguriert
+def call_gemini_api(contents: list, model: genai.GenerativeModel) -> Dict[str, str]:
+    """Ruft die Gemini API auf (mit Retry-Logik und Fehlerbehandlung)."""
     retries = 0
     wait_time = 1
     max_wait_time = 60
     while retries < API_MAX_RETRIES:
         try:
-            logging.info(f"Sende Anfrage an Gemini ({model}): {str(contents)[:100]}... (Versuch {retries + 1})")
-
-            if model == MODEL_NAME_TEXT: # Modell Auswahl
-                response = model_text.generate_content(contents=contents)
-            elif model == MODEL_NAME_VISION:
-                response = model_vision.generate_content(contents=contents)
-            else:
-                raise ValueError(f"Ungültiges Modell: {model}")
-
+            logging.info(f"Sende Anfrage an Gemini ({model.name}): {str(contents)[:100]}... (Versuch {retries + 1})")
+            response = model.generate_content(contents=contents)
 
             if not hasattr(response, "text") or not response.text:
                 msg = "Leere Antwort von Gemini API."
@@ -292,46 +249,41 @@ def call_gemini_api(contents: list, api_key: str, model: str) -> Dict[str, str]:
                 if retries >= API_MAX_RETRIES:
                     return {"response": "Fehler: Maximale Anzahl an Versuchen erreicht (API-Limit)."}
                 wait_time = min(wait_time * 2, max_wait_time)
-                actual_wait_time = wait_time * random.uniform(0.5, 1.5)
+                actual_wait_time = wait_time * random.uniform(0.5, 1.5)  # Jitter
                 logging.warning(f"API-Kontingent erschöpft. Warte {actual_wait_time:.2f} Sekunden...")
                 time.sleep(actual_wait_time)
             else:
                 return {"response": f"Fehler bei Gemini API Aufruf: {err_s}"}
     return {"response": f"Fehler: Maximale Anzahl an Versuchen erreicht ({API_MAX_RETRIES})."}
 
-
-def generate_summary(text: str, api_key: str) -> str:
+def generate_summary(text: str, model: genai.GenerativeModel) -> str:
     """Generiert eine Textzusammenfassung."""
     prompt = f"Fasse den folgenden Text prägnant zusammen:\n\n{text}"
-    # Kein Mime-Type hier
-    result = call_gemini_api([prompt], api_key, model=MODEL_NAME_TEXT)  # Explizit Textmodell
+    result = call_gemini_api([prompt], model=model)  # Kein Mime-Type
     if SUMMARY_SLEEP_SECONDS > 0:
-        time.sleep(SUMMARY_SLEEP_SECONDS)
+        time.sleep(SUMMARY_SLEEP_SECONDS)  # Optionale Pause
     return result.get("response", "Fehler: Keine Zusammenfassung generiert.")
 
-
-def process_uploaded_file(uploaded_file, api_key: str) -> str:
+def process_uploaded_file(uploaded_file, text_model, vision_model) -> str:
     """Verarbeitet hochgeladene Dateien (PDF oder Bild)."""
-    if uploaded_file is None:
-        return "Start der Konversation."
+    if uploaded_file is None:  return "Start der Konversation."
 
     try:
         file_bytes = uploaded_file.read()
-        # uploaded_file.seek(0)  # Nicht mehr nötig nach dem read()
         mime_type = uploaded_file.type
 
         if mime_type == "application/pdf":
-            return generate_pdf_summary_from_bytes(file_bytes, api_key)
+            return generate_pdf_summary_from_bytes(file_bytes, text_model)
         elif mime_type.startswith("image"):
-            return generate_image_summary_from_bytes(file_bytes, mime_type, api_key)
+            return generate_image_summary_from_bytes(file_bytes, mime_type, vision_model)
         else:
             logging.warning(f"Nicht unterstützter Dateityp: {mime_type}")
             return f"Nicht unterstützter Dateityp: {mime_type}"
-
     except Exception as e:
         logging.error(f"Fehler beim Verarbeiten der Datei: {e}", exc_info=True)
         return "Fehler beim Verarbeiten der Datei."
 
+# Hauptlogik (Konversation mit Agenten)
 
 def joint_conversation_with_selected_agents(
     conversation_topic: str,
@@ -342,38 +294,46 @@ def joint_conversation_with_selected_agents(
     chat_history: List[Dict[str, str]],
     user_state: str,
     discussion_id: str = None,
-    api_key: str = None,
-    uploaded_file=None
-):
-    """Führt eine Konversation mit Agenten."""
+    text_model: genai.GenerativeModel = None,
+    vision_model: genai.GenerativeModel = None,
+    uploaded_file = None
+) -> Tuple[List[Dict[str,str]], str, str, Union[int, None], Union[str, None]]:
+    """Führt eine Konversation mit ausgewählten Agenten durch."""
+
     if discussion_id is None:
         discussion_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     chat_history_filename = f"chat_history_{discussion_id}.txt"
-    active_agents_names = [sa["name"] for sa in selected_agents]
-    num_agents = len(active_agents_names)
-    agent_outputs = [""] * num_agents
-    topic_changed = False
-    logging.info(f"Konversation gestartet: {active_agents_names}, iters={iterations}, Diskussions-ID: {discussion_id}")
 
-    initial_summary = process_uploaded_file(uploaded_file, api_key)  # Kann "" sein
+    active_agents_names = [agent["name"] for agent in selected_agents]
+    num_agents = len(active_agents_names)
+    agent_outputs = [""] * num_agents  # Speichert die letzte Ausgabe jedes Agenten
+    topic_changed = False  # Flag, um Themenwechsel zu verfolgen
+
+    logging.info(f"Konversation gestartet: {active_agents_names}, Iterationen: {iterations}, Diskussions-ID: {discussion_id}")
+
+    initial_summary = process_uploaded_file(uploaded_file, text_model, vision_model)
     current_summary = initial_summary
 
     for i in range(iterations):
-        agent_idx = i % num_agents
+        agent_idx = i % num_agents  # Rotiere durch die Agenten
         current_agent_name = active_agents_names[agent_idx]
-        current_agent_config = next((a for a in selected_agents if a["name"] == current_agent_name), None)
+        current_agent_config = next((agent for agent in selected_agents if agent["name"] == current_agent_name), None)
+
+        # Hole Persönlichkeit und Anweisungen des aktuellen Agenten
         current_personality = current_agent_config.get("personality", "neutral")
         current_instruction = current_agent_config.get("instruction", "")
 
+        # Baue den Prompt für den aktuellen Agenten
         prompt_text = (
             f"Wir führen eine Konversation über: '{conversation_topic}'.\n"
-            + (f"Zusätzliche Informationen: '{initial_summary}'.\n" if initial_summary else "") # initial summary
+            + (f"Zusätzliche Informationen: '{initial_summary}'.\n" if initial_summary else "")
             + f"Hier ist die Zusammenfassung der bisherigen Diskussion:\n{current_summary}\n\n"
             + f"Iteration {i+1}: Agent {current_agent_name}, bitte antworte. {current_instruction}\n"
         )
-        if i > 0:
+        if i > 0:  # Füge die Antwort des vorherigen Agenten hinzu (außer in der ersten Runde)
             prompt_text += f"Der vorherige Agent sagte: {agent_outputs[(agent_idx - 1) % num_agents]}\n"
 
+        # Zusätzliche Anweisungen basierend auf der Persönlichkeit
         if current_personality == "kritisch":
             prompt_text += "\nSei besonders kritisch."
         elif current_personality == "visionär":
@@ -382,40 +342,32 @@ def joint_conversation_with_selected_agents(
             prompt_text += "\nSei besonders konservativ."
         prompt_text += f"\n\nAntworte auf {language}."
 
-
         contents = [prompt_text]
+        # Füge die Datei zum Prompt hinzu, WENN sie existiert
         if uploaded_file is not None:
             try:
                 file_bytes = uploaded_file.read()
-                #uploaded_file.seek(0)  # Nicht nötig
                 mime_type = uploaded_file.type
-                 # Immer Textmodell innerhalb der Konversation, Datei wird separat behandelt.
                 if mime_type.startswith("image"):
-                    contents = [prompt_text,  {
-                        'mime_type': mime_type,
-                        'data': file_bytes
-                    }]
+                    contents = [prompt_text,  { 'mime_type': mime_type, 'data': file_bytes }]
                 elif mime_type == "application/pdf":
-                    contents = [prompt_text, file_bytes] # bytes direkt
+                    contents = [prompt_text, file_bytes]
 
             except Exception as e:
                 logging.error(f"Fehler beim Lesen der Datei (Iteration {i+1}): {e}", exc_info=True)
                 yield chat_history, f"Fehler beim Lesen der Datei (Iteration {i+1}).", discussion_id, (i + 1), current_agent_name
                 continue
 
-        api_resp = call_gemini_api(contents, api_key, model=MODEL_NAME_TEXT)  # Immer Textmodell
+        # Rufe die Gemini API auf (immer mit dem TEXTMODELL innerhalb der Konversation)
+        api_resp = call_gemini_api(contents, model=text_model)
         agent_output = api_resp.get("response", f"Keine Antwort von {current_agent_name}")
-        agent_outputs[agent_idx] = agent_output
+        agent_outputs[agent_idx] = agent_output  # Speichere die Ausgabe des Agenten
 
-        chat_history.append({
-            "role": "user",
-            "content": f"Agent {current_agent_name} (Iteration {i + 1}): {prompt_text}"
-        })
-        chat_history.append({
-            "role": "assistant",
-            "content": f"{agent_output}"  # Vereinfacht
-        })
+        # Füge Nachrichten zum Chatverlauf hinzu (sowohl Benutzer-Prompt als auch Agenten-Antwort)
+        chat_history.append({"role": "user", "content": f"Agent {current_agent_name} (Iteration {i + 1}): {prompt_text}"})
+        chat_history.append({"role": "assistant", "content": f"{agent_output}"})
 
+        # Speichere den Chatverlauf in einer Datei (optional, für Debugging-Zwecke)
         try:
             with open(chat_history_filename, "w", encoding="utf-8") as f:
                 for message in chat_history:
@@ -423,10 +375,12 @@ def joint_conversation_with_selected_agents(
         except IOError as e:
             logging.error(f"Fehler beim Schreiben in Chatverlauf-Datei: {e}")
 
+        # Generiere eine neue Zusammenfassung (bisherige Zusammenfassung + neue Antwort)
         new_summary_input = f"Bisherige Zusammenfassung:\n{current_summary}\n\nNeue Antwort von {current_agent_name}:\n{agent_output}"
-        current_summary = generate_summary(new_summary_input, api_key)
-        time.sleep(API_SLEEP_SECONDS)
+        current_summary = generate_summary(new_summary_input, model=text_model)
+        time.sleep(API_SLEEP_SECONDS)  # API-Rate-Limit einhalten
 
+        # Bewerte die Antwort und versuche es ggf. erneut (Retry-Logik)
         qual = evaluate_response(agent_output)
         if qual == "schlechte antwort":
             logging.info(f"{current_agent_name} => 'schlechte antwort', retry...")
@@ -439,10 +393,7 @@ def joint_conversation_with_selected_agents(
                     if mime_type.startswith("image"):
                         retry_contents = [
                             "Versuche eine kreativere Antwort.",
-                            {
-                                'mime_type': mime_type,
-                                'data': file_bytes
-                            }
+                            {  'mime_type': mime_type,  'data': file_bytes  }
                         ]
                     elif mime_type == "application/pdf":
                         retry_contents = ["Versuche eine kreativere Antwort.", file_bytes]
@@ -451,16 +402,19 @@ def joint_conversation_with_selected_agents(
                     logging.error(f"Fehler beim Lesen der Datei für Retry: {e}", exc_info=True)
                     yield chat_history, "Fehler beim Lesen der Datei während des Retrys.", discussion_id, (i + 1), current_agent_name
                     continue
-            retry_resp = call_gemini_api(retry_contents, api_key, model=MODEL_NAME_TEXT)
+
+            retry_resp = call_gemini_api(retry_contents, model=text_model)
             retry_output = retry_resp.get("response", f"Keine Retry-Antwort von {current_agent_name}")
-            if "Fehler" not in retry_output:  # Nur wenn kein Fehler auftritt
-                agent_output = retry_output
+            if "Fehler" not in retry_output:
+                agent_output = retry_output  # Aktualisiere die Agenten-Antwort, wenn Retry erfolgreich war
             agent_outputs[agent_idx] = agent_output
 
+        # Aktualisiere Informationen für das Streamlit-Rating (vor dem Yield!)
         st.session_state['rating_info']["discussion_id"] = discussion_id
         st.session_state['rating_info']["iteration"] = i + 1
         st.session_state['rating_info']["agent_name"] = current_agent_name
 
+        # Formatiere den Output für Streamlit
         logging.info(f"Antwort Agent {current_agent_name} (i={i+1}): {agent_output[:50]}...")
         formatted_output_chunk = (
             f"**Iteration {i+1}: Agent {current_agent_name} ({current_personality})**\n\n"
@@ -469,59 +423,50 @@ def joint_conversation_with_selected_agents(
         )
         yield chat_history, formatted_output_chunk, discussion_id, (i + 1), current_agent_name
 
+        # Themenwechsel-Logik (nach 60% der Iterationen, wenn die Antworten sich wiederholen)
         if i > iterations * 0.6 and agent_output == agent_outputs[(agent_idx - 1) % num_agents] and not topic_changed:
             new_topic = "Neues Thema: KI-Trends 2026"
             contents = [new_topic] # kein upload file
-            if uploaded_file is not None: # file handling
+            if uploaded_file is not None: # korrektes file handling
                 try:
                     file_bytes = uploaded_file.read()
                     mime_type = uploaded_file.type
-
                     if mime_type.startswith("image"):
-                        contents = [new_topic,  {
-                            'mime_type': mime_type,
-                            'data': file_bytes
-                        }]
+                        contents = [new_topic,  { 'mime_type': mime_type, 'data': file_bytes }]
                     elif mime_type == "application/pdf":
-                        contents = [new_topic, file_bytes]  # bytes direkt
-
+                        contents = [new_topic, file_bytes]
                 except Exception as e:
                     logging.error(f"Fehler beim Lesen der Datei für neues Thema: {e}", exc_info=True)
                     yield chat_history, "Fehler beim Lesen der Datei beim Themenwechsel.", discussion_id, (i+1), current_agent_name
                     continue
 
-            agent_outputs = [new_topic] * num_agents  # Reset der Ausgaben
+            agent_outputs = [new_topic] * num_agents
             topic_changed = True
 
+    # Generiere die finale Zusammenfassung (gesamter Chatverlauf)
     final_summary_input = "Gesamter Chatverlauf:\n" + "\n".join([f"{m['role']}: {m['content']}" for m in chat_history])
-    final_summary = generate_summary(final_summary_input, api_key)
+    final_summary = generate_summary(final_summary_input, model=text_model)
     chat_history.append({"role": "assistant", "content": f"**Gesamtzusammenfassung**:\n{final_summary}"})
 
+    # Speichere die Diskussion in der Datenbank (wenn ein Benutzer eingeloggt ist)
     if user_state:
         save_discussion_data_db(discussion_id, conversation_topic, active_agents_names, chat_history, final_summary, user_state)
         logging.info(f"Diskussion {discussion_id} gespeichert.")
     else:
         logging.info("Diskussion nicht gespeichert (kein Benutzer).")
 
-    final_text = agent_outputs[-1]  # Letzte Agenten-Antwort
+    final_text = agent_outputs[-1]
     chat_history.append({"role": "assistant", "content": f"Finale Aussage:\n{final_text}"})
     logging.info(f"Finale Aussage: {final_text}")
-    yield chat_history, final_summary, discussion_id, None, None
-
+    yield chat_history, final_summary, discussion_id, None, None  # Yield-Statement am Ende
 
 
 def save_chat_as_word(chat_history: List[Dict], discussion_id: str) -> str:
-    """Speichert den Chatverlauf als Word-Dokument."""
+    """Speichert den Chatverlauf als Word-Dokument (vereinfacht)."""
     document = Document()
     document.add_heading(f'Agenten-Diskussion: {discussion_id}', level=1)
     for message in chat_history:
-        role = message['role']
-        content = message['content']
-        if role == 'user':
-            document.add_paragraph("Nutzer:", style='List Bullet').add_run(f" {content}").bold = True
-        elif role == 'assistant':
-             # Vereinfachte Formatierung
-            document.add_paragraph(content, style='List Bullet')
+        document.add_paragraph(f"{message['role']}: {message['content']}", style='List Bullet')
     filename = f"Diskussion_{discussion_id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
     try:
         document.save(filename)
@@ -531,41 +476,42 @@ def save_chat_as_word(chat_history: List[Dict], discussion_id: str) -> str:
         logging.error(f"Fehler beim Speichern der Word-Datei: {e}")
         return None
 
+# Streamlit-App (Benutzeroberfläche)
 def main():
-    """Hauptfunktion der Streamlit-Anwendung (angepasst)."""
+    """Hauptfunktion der Streamlit-Anwendung."""
     st.title("CipherCore Agenten-Konversation")
     st.markdown("AI-THINK-TANK – Die KI-Plattform für bahnbrechende Innovationen.")
     st.markdown("Ein Bild, eine Idee – und in Minuten entsteht eine visionäre Lösung.")
 
+    # Initialisiere Session-State-Variablen (falls sie noch nicht existieren)
+    if 'user_state' not in st.session_state:  st.session_state['user_state'] = None
+    if 'chat_history' not in st.session_state: st.session_state['chat_history'] = []
+    if 'discussion_id' not in st.session_state: st.session_state['discussion_id'] = None
+    if 'rating_info' not in st.session_state:  st.session_state['rating_info'] = {}
+    if 'formatted_output_text' not in st.session_state: st.session_state['formatted_output_text'] = ""
+    if 'api_key' not in st.session_state: st.session_state['api_key'] = ""  # Initialisiere mit leerem String
+    if 'uploaded_file' not in st.session_state: st.session_state['uploaded_file'] = None
 
-    if 'user_state' not in st.session_state:
-        st.session_state['user_state'] = None
-    if 'chat_history' not in st.session_state:
-        st.session_state['chat_history'] = []
-    if 'discussion_id' not in st.session_state:
-        st.session_state['discussion_id'] = None
-    if 'rating_info' not in st.session_state:
-        st.session_state['rating_info'] = {}
-    if 'formatted_output_text' not in st.session_state:
-        st.session_state['formatted_output_text'] = ""
-    # if 'api_key' not in st.session_state:  # Entfernt, da wir Secrets verwenden
-    #     st.session_state['api_key'] = None
-    if 'uploaded_file' not in st.session_state:
-        st.session_state['uploaded_file'] = None
+    # --- API-Schlüssel-Eingabe (wiederhergestellt) ---
+    st.sidebar.header("API-Schlüssel")
+    api_key_input = st.sidebar.text_input("Geben Sie Ihren Gemini API-Schlüssel ein:", type="password", value=st.session_state['api_key']) # value added
 
-    # API-Schlüssel aus Streamlit Secrets (bevorzugt)
-    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key_input:  # Speichere den eingegebenen Schlüssel im Session State
+        st.session_state['api_key'] = api_key_input
+    # --- Ende der API-Schlüssel-Eingabe ---
 
-    if not api_key:
-        st.error("API-Schlüssel fehlt! Bitte in Streamlit Secrets konfigurieren.")
-        st.stop()  # Stoppt die App, wenn kein Schlüssel vorhanden ist.
+    # Verwende den Schlüssel aus dem Session State (kann leer sein)
+    api_key = st.session_state['api_key']
 
-    genai.configure(api_key=api_key)  # Globale Konfiguration
-
-    # Initialisiere die Modelle hier, NACHDEM der API-Key konfiguriert wurde
-    global model_text, model_vision
-    model_text = genai.GenerativeModel(MODEL_NAME_TEXT)
-    model_vision = genai.GenerativeModel(MODEL_NAME_VISION)
+    # Initialisiere die Modelle NUR, wenn ein API-Schlüssel vorhanden ist
+    if api_key:
+        genai.configure(api_key=api_key)
+        model_text = genai.GenerativeModel(MODEL_NAME_TEXT)
+        model_vision = genai.GenerativeModel(MODEL_NAME_VISION)
+    else:
+        model_text = None  # Setze Modelle auf None, wenn kein Schlüssel
+        model_vision = None
+        st.warning("Bitte geben Sie einen API-Schlüssel ein, um die Anwendung zu nutzen.")
 
 
     with st.expander("Login / Registrierung"):
@@ -581,7 +527,7 @@ def main():
                 if logged_in_user:
                     st.session_state['user_state'] = logged_in_user
                     login_status.success(msg)
-                    st.rerun()  # Erzwingt ein Neuladen der Seite
+                    st.rerun()
                 else:
                     login_status.error(msg)
         with col2:
@@ -612,7 +558,7 @@ def main():
 
     topic_input = st.text_input("Diskussionsthema")
     iteration_slider = st.slider("Anzahl Gesprächsrunden", 1, 50, 10)
-    level_radio = st.radio("Experten-Level", ["Beginner", "Fortgeschritten", "Experte"], horizontal=True)
+    level_radio = st.radio("Experten-Level", ["Beginner", "Fortgeschritten", "Experte"], horizontal=True) # Not used
     lang_radio = st.radio("Sprache", ["Deutsch", "Englisch", "Französisch", "Spanisch"], horizontal=True)
 
     st.subheader("Datei hochladen (optional)")
@@ -629,7 +575,6 @@ def main():
             st.write("PDF-Datei hochgeladen (Vorschau nicht unterstützt)")
         else:
             st.write("Datei hochgeladen")
-
 
     with st.expander("Gespeicherte Diskussionen"):
         load_disc_btn = st.button("Diskussionen laden")
@@ -651,6 +596,7 @@ def main():
     st.subheader("Formatierter Output")
     st.markdown(st.session_state['formatted_output_text'])
 
+    # Bewertungs-Buttons (Upvote/Downvote)
     rating_col1, rating_col2, rating_col3 = st.columns([1, 1, 3])
     if st.session_state['rating_info'].get("iteration") is not None:
         with rating_col1:
@@ -659,7 +605,6 @@ def main():
             downvote_btn = st.button("👎 Downvote")
         with rating_col3:
             rating_label = st.empty()
-
         if upvote_btn:
             did = st.session_state['rating_info'].get("discussion_id")
             itn = st.session_state['rating_info'].get("iteration")
@@ -715,6 +660,8 @@ def main():
         ]
         if not selected_agents:
             st.warning("Bitte wähle mindestens einen Agenten aus.")
+        elif not api_key:  # Überprüfe, ob ein API-Schlüssel eingegeben wurde
+            st.warning("Bitte geben Sie einen API-Schlüssel ein.")
         else:
             st.session_state['chat_history'] = []
             st.session_state['formatted_output_text'] = ""
@@ -726,12 +673,13 @@ def main():
                         conversation_topic=topic_input,
                         selected_agents=selected_agents,
                         iterations=iteration_slider,
-                        expertise_level=level_radio,
+                        expertise_level=level_radio,  # Wird aktuell nicht verwendet
                         language=lang_radio,
                         chat_history=[],
                         user_state=st.session_state['user_state'],
                         discussion_id=st.session_state['discussion_id'],
-                        api_key=api_key,  # Verwende den aus Secrets geladenen Schlüssel
+                        text_model=model_text,  # Übergib die Modelle
+                        vision_model=model_vision,
                         uploaded_file=st.session_state.get('uploaded_file')
                     )
                     for updated_hist, chunk_text, disc_id, iteration_num, agent_n in agent_convo:
@@ -746,12 +694,14 @@ def main():
                                 st.session_state['chat_history'].append(message)
                                 with st.chat_message(message["role"]):
                                     st.markdown(message["content"])
-                            st.session_state['formatted_output_text'] += chunk_text
+                            st.session_state['formatted_output_text'] += chunk_text  # Aktualisiere formatierten Text
 
             except (tornado.websocket.WebSocketClosedError, tornado.iostream.StreamClosedError) as e:
                 st.error(f"Verbindungsfehler: {e}. Bitte versuche es später erneut.")
+                logging.exception("Verbindungsfehler in der Hauptschleife:")
             except StopCandidateException as e:
-                st.error(f"Die Konversation wurde unerwartet beendet: {e}")  # Fehler von Gemini abfangen
+                st.error(f"Die Konversation wurde unerwartet beendet: {e}") # Fehler von Gemini abfangen.
+                logging.exception("StopCandidateException in Hauptschleife:")
             except Exception as e:
                 st.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
                 logging.exception("Unerwarteter Fehler in der Hauptschleife:")
