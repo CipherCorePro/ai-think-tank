@@ -498,23 +498,29 @@ def joint_conversation_with_selected_agents(
         language (str): Die Sprache der Konversation.
         chat_history (List[Dict[str, str]]): Der Chatverlauf.
         user_state (str): Der Zustand des Benutzers.
-        discussion_id (str, optional): Die ID der Diskussion.
+        discussion_id (str, optional): Die ID der Diskussion.  Wird automatisch generiert, wenn nicht angegeben.
         api_key (str, optional): Der API-Schlüssel für den Gemini-Dienst.
-        uploaded_file: Die hochgeladene Datei.
+        uploaded_file: Die hochgeladene Datei (optional).
 
     Yields:
         Tuple: Aktualisierter Chatverlauf, formatierter Textabschnitt, Diskussions-ID, Iterationsnummer, Agentenname.
     """
     if discussion_id is None:
         discussion_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    chat_history_filename = f"chat_history_{discussion_id}.txt"
+
+    # ---  Verwende IMMER eine feste Datei.  Guter Name, um Konflikte zu vermeiden. ---
+    chat_history_filename = "chat_history.txt"
+
+    # --- Option zum Auskommentieren (für lokale Entwicklung nützlich) ---
+    # Setze USE_CHAT_HISTORY_FILE auf False, um das Schreiben zu deaktivieren.
+    USE_CHAT_HISTORY_FILE = False   #  Oder True
+
     active_agents_names = [sa["name"] for sa in selected_agents]
     num_agents = len(active_agents_names)
     agent_outputs = [""] * num_agents
     topic_changed = False
     logging.info(f"Konversation gestartet: {active_agents_names}, iters={iterations}, level={expertise_level}, lang={language}, Diskussions-ID: {discussion_id}, Datei: {uploaded_file is not None}")
 
-    # Dateiinhalt verarbeiten: Zusammenfassung/Beschreibung generieren
     initial_summary = process_uploaded_file(uploaded_file, api_key)
     current_summary = initial_summary
 
@@ -567,12 +573,15 @@ def joint_conversation_with_selected_agents(
             "content": f"Antwort von Agent {current_agent_name} (Iteration {i+1}):\n{agent_output}"
         })
 
-        try:
-            with open(chat_history_filename, "w", encoding="utf-8") as f:
-                for message in chat_history:
-                    f.write(f"{message['role']}: {message['content']}\n")
-        except IOError as e:
-            logging.error(f"Fehler beim Schreiben in Chatverlauf-Datei '{chat_history_filename}': {e}")
+        # ---  Nur schreiben, wenn USE_CHAT_HISTORY_FILE True ist  ---
+        if USE_CHAT_HISTORY_FILE:
+            try:
+                with open(chat_history_filename, "w", encoding="utf-8") as f:
+                    for message in chat_history:
+                        f.write(f"{message['role']}: {message['content']}\n")
+            except IOError as e:
+                logging.error(f"Fehler beim Schreiben in Chatverlauf-Datei '{chat_history_filename}': {e}")
+
 
         new_summary_input = f"Bisherige Zusammenfassung:\n{current_summary}\n\nNeue Antwort von {current_agent_name}:\n{agent_output}"
         current_summary = generate_summary(new_summary_input, api_key)
